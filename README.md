@@ -144,4 +144,4 @@ The Folder Structure Visualization and Restructuring Utility is a cross-platform
 This project is licensed under the [MIT License](LICENSE).
 
 ## Contact
-For any questions, suggestions, or collaborations, please contact the project maintainer at [rentedzone@gmail.com](mailto:rentedzone@gmail.com).
+For any questions, suggestions, or collaborations, please contact the project maintainer at [daa.addison@gmail.com](mailto:daa.addison@gmail.com).
