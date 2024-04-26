@@ -120,7 +120,7 @@ The Folder Structure Visualization and Restructuring Utility is a cross-platform
 - Prepare release notes and distribution channels
 
 ## Current Development Phase
-### [Phase 1: Setup and UI Design](#Phase 1: Setup and UI Design)
+### [Phase 1](#Phase 1: Setup and UI Design)
 - Development environment has been setup
 - Working on making a mockup/wireframe using Balsamiq
 
