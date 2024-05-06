@@ -119,6 +119,11 @@ The Folder Structure Visualization and Restructuring Utility is a cross-platform
 - Create installers or setup scripts for easy distribution
 - Prepare release notes and distribution channels
 
+## Current Development Phase
+### [Phase 1](#Phase 1: Setup and UI Design)
+- Development environment has been setup
+- Working on making a mockup/wireframe using Balsamiq
+
 ## Technologies and Tools
 - Programming Language: Python
 - GUI Framework: PyQt or PySide
@@ -126,6 +131,7 @@ The Folder Structure Visualization and Restructuring Utility is a cross-platform
 - Packaging Tools: PyInstaller or cx_Freeze
 - Version Control: Git
 - Documentation: Markdown, Sphinx, or ReadTheDocs
+- Wireframes: Balsamiq
 
 ## Contribution Guidelines
 - Fork the repository and create a new branch for each feature or bug fix
@@ -138,4 +144,4 @@ The Folder Structure Visualization and Restructuring Utility is a cross-platform
 This project is licensed under the [MIT License](LICENSE).
 
 ## Contact
-For any questions, suggestions, or collaborations, please contact the project maintainer at [rentedzone@gmail.com](mailto:rentedzone@gmail.com).
+For any questions, suggestions, or collaborations, please contact the project maintainer at [daa.addison@gmail.com](mailto:daa.addison@gmail.com).
