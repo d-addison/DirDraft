@@ -1,35 +1,19 @@
-from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QHBoxLayout, QWidget, QLabel, QPushButton, QToolBar, QAction
-from PyQt5.QtGui import QIcon
-from gui.folder_view import FolderView
-
+import sys
+from PyQt5.QtWidgets import QMainWindow, QToolBar, QWidget, QVBoxLayout, QStackedWidget, QToolButton, QAction
 import logging
-
-"""
-The main window of the DirDraft application.
-
-Classes:
-- MainWindow: Represents the main window of the application.
-
-Methods:
-- __init__(): Initializes the main window, sets up the UI elements, and connects signals to slots.
-- on_main_window_clicked(): Slot for handling the 'Main Window' button click event.
-- on_folder_view_clicked(): Slot for handling the 'Folder View' button click event.
-- on_preview_dialogue_clicked(): Slot for handling the 'Preview Dialogue' button click event.
-- on_new_triggered(): Slot for handling the 'New' action triggered event.
-- on_open_triggered(): Slot for handling the 'Open' action triggered event.
-"""
+from gui.folder_structure_page import FolderStructurePage
+from gui.template_design_page import TemplateDesignPage
+from gui.main_menu_page import MainMenuPage
+from utils.styles import FOCUSED_ACTION_STYLE, UNFOCUSED_ACTION_STYLE
 
 class MainWindow(QMainWindow):
    def __init__(self):
       super().__init__()
       
-      # Set the icon for the main window
-      self.setWindowIcon(QIcon('./icons/app_icon.png'))
-      
-      # Set up logging
-      logging.basicConfig(level=logging.INFO)
+      # Set up the logger
+      logging.basicConfig(filename="DirDraft.log", level=logging.INFO)
       self.logger = logging.getLogger(__name__)
-      
+
       # Set up the main window
       self.setWindowTitle("DirDraft")
       self.setGeometry(100, 100, 800, 600)
@@ -38,63 +22,96 @@ class MainWindow(QMainWindow):
       central_widget = QWidget(self)
       self.setCentralWidget(central_widget)
       layout = QVBoxLayout(central_widget)
-
-      # Create a navigation view
-      navbar = QToolBar("Navigation")
-      self.addToolBar(navbar)
       
+      # Create a nav bar
+      self.navbar = QToolBar("Navigation")
+      self.addToolBar(self.navbar)
+
       # Create navigation bar actions
-      self.action_new = navbar.addAction("New")
-      self.action_open = navbar.addAction("Open")
-      self.action_save = navbar.addAction("Save")
-      
-      # Add actions to the navigation bar
-      navbar.addAction(self.action_new)
-      navbar.addAction(self.action_open)
-      navbar.addAction(self.action_save)
-      
-      # Connect navigation bar actions to slots
-      self.action_new.triggered.connect(self.on_new_triggered)
-      self.action_open.triggered.connect(self.on_open_triggered)
-      self.action_save.triggered.connect(self.on_save_triggered)
-      
-      # Create a label for displaying the current path
-      self.label_path = QLabel("Ahoy there matey! Welcome to DirDraft!")
-      layout.addWidget(self.label_path)
-      
-      # Create buttons
-      button_layout = QHBoxLayout()
-      self.button_main_window = QPushButton("Main Window")
-      self.button_folder_view = QPushButton("Folder View")
-      self.button_preview_dialogue = QPushButton("Preview Dialogue")
-      button_layout.addWidget(self.button_main_window)
-      button_layout.addWidget(self.button_folder_view)
-      button_layout.addWidget(self.button_preview_dialogue)
-      layout.addLayout(button_layout)
-      
-      # Create a folder view
-      self.folder_view = FolderView(self)
-      layout.addWidget(self.folder_view)
-      
-      # Connect signals and slots
-      self.button_main_window.clicked.connect(self.on_main_window_clicked)
-      self.button_folder_view.clicked.connect(self.on_folder_view_clicked)
-      self.button_preview_dialogue.clicked.connect(self.on_preview_dialogue_clicked)
-      
-   def on_main_window_clicked(self):
-      self.logger.info("'Main Window' button clicked")
-   
-   def on_folder_view_clicked(self):
-      self.logger.info("'Folder view' button clicked")
+      self.action_main_menu = QAction("Main Menu", self)
+      self.action_folder_structure = QAction("Folder Structure", self)
+      self.action_template_design = QAction("Template Design", self)
 
-   def on_preview_dialogue_clicked(self):
-      self.logger.info("'Preview dialogue' button clicked")
+      # Create tool buttons for the actions
+      self.tool_button_main_menu = QToolButton(self)
+      self.tool_button_main_menu.setDefaultAction(self.action_main_menu)
+      self.navbar.addWidget(self.tool_button_main_menu)
+
+      self.tool_button_folder_structure = QToolButton(self)
+      self.tool_button_folder_structure.setDefaultAction(self.action_folder_structure)
+      self.navbar.addWidget(self.tool_button_folder_structure)
+
+      self.tool_button_template_design = QToolButton(self)
+      self.tool_button_template_design.setDefaultAction(self.action_template_design)
+      self.navbar.addWidget(self.tool_button_template_design)
+
+      # Store the tool buttons and their styles
+      self.action_styles = {
+         self.tool_button_main_menu: FOCUSED_ACTION_STYLE,
+         self.tool_button_folder_structure: UNFOCUSED_ACTION_STYLE,
+         self.tool_button_template_design: UNFOCUSED_ACTION_STYLE
+      }
+
+      # Set initial styles for the tool buttons
+      for tool_button, style in self.action_styles.items():
+         tool_button.setStyleSheet(style)
+         
+      self.action_main_menu.triggered.connect(self.update_action_styles)
+      self.action_folder_structure.triggered.connect(self.update_action_styles)
+      self.action_template_design.triggered.connect(self.update_action_styles)
+
+      # Connect navigation bar actions to slots
+      self.action_main_menu.triggered.connect(self.show_main_menu)
+      self.action_folder_structure.triggered.connect(self.show_folder_structure)
+      self.action_template_design.triggered.connect(self.show_template_design)
       
-   def on_new_triggered(self):
-      self.logger.info("New action triggered")
+      # Create a stacked widget to hold the main menu, folder structure, and template design pages
+      self.stacked_widget = QStackedWidget()
+      layout.addWidget(self.stacked_widget)
+
+      # Create instances of the main menu, folder structure, and template design pages
+      self.main_menu_widget = MainMenuPage(self)
+      self.folder_structure_page = FolderStructurePage(self)
+      self.template_design_page = TemplateDesignPage(self)
+
+      # Add the pages to the stacked widget
+      self.stacked_widget.addWidget(self.main_menu_widget)
+      self.stacked_widget.addWidget(self.folder_structure_page)
+      self.stacked_widget.addWidget(self.template_design_page)
+
+   def show_main_menu(self):
+      # Show the main menu widget
+      self.logger.info("Displaying main menu page...")
+      self.stacked_widget.setCurrentWidget(self.main_menu_widget)
+      self.update_action_styles()
       
-   def on_open_triggered(self):
-      self.logger.info("Open action triggered")
+
+   def show_folder_structure(self):
+      # Show the folder structure widget
+      self.logger.info("Displaying folder structure page...")
+      self.stacked_widget.setCurrentWidget(self.folder_structure_page)
+      self.update_action_styles()
+
+   def show_template_design(self):
+      # Show the template design widget
+      self.logger.info("Displaying template design page...")
+      self.stacked_widget.setCurrentWidget(self.template_design_page)
+      self.update_action_styles()
       
-   def on_save_triggered(self):
-      self.logger.info("Save action triggered")
+   def update_action_styles(self):
+      action = self.sender()
+      tool_button = None
+
+      if action == self.action_main_menu:
+         tool_button = self.tool_button_main_menu
+      elif action == self.action_folder_structure:
+         tool_button = self.tool_button_folder_structure
+      elif action == self.action_template_design:
+         tool_button = self.tool_button_template_design
+
+      if tool_button:
+         for btn, style in self.action_styles.items():
+            if btn == tool_button:
+                  btn.setStyleSheet(FOCUSED_ACTION_STYLE)
+            else:
+                  btn.setStyleSheet(UNFOCUSED_ACTION_STYLE)
