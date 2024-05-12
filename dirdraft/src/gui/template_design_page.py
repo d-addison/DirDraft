@@ -241,6 +241,9 @@ class TemplateDesignPage(QWidget):
                            self.template = self.template_manager.get_template(self.current_template_index)
                            self.tree_widget.clear()
                            self.populate_tree_widget(self.template.root_node)
+                           
+                           # Update the header label with the template name
+                           self.tree_widget.setHeaderLabels([f"Template Structure: {self.template.name}"])
                      except Exception as e:
                            print(f"Error loading template from {file_path}: {e}")
          else:
@@ -257,6 +260,9 @@ class TemplateDesignPage(QWidget):
          self.template = self.template_manager.get_template(self.current_template_index)
          self.tree_widget.clear()
          self.populate_tree_widget(self.template.root_node)
+         
+         # Update the header label with the template name
+         self.tree_widget.setHeaderLabels([f"Template Structure: {template_name}"])
 
    def save_current_template(self):
       if self.current_template_index is not None:
