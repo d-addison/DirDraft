@@ -1,38 +1,100 @@
 from PyQt5.QtWidgets import QTreeWidget, QTreeWidgetItem, QStyle
-from PyQt5.QtGui import QFont, QBrush, QColor, QPalette, QPixmap
-from utils.styles import FOLDER_STYLE, FILE_STYLE, INACCESSIBLE_STYLE, OTHER_STYLE
+from PyQt5.QtCore import Qt, QMimeData
+from PyQt5.QtGui import QFont, QColor, QPalette, QPixmap, QDrag, QBrush
+from utils.styles import FOLDER_STYLE, FILE_STYLE, GENERATED_STYLE
+from core.node import Node
 import os
 
 class CustomTreeWidget(QTreeWidget):
    def __init__(self, parent=None):
       super().__init__(parent)
-      self.setColumnCount(3)
-      self.setHeaderLabels(["Name", "Type", "Extension"])
+      self.setDragEnabled(True)
+      self.setDragDropMode(QTreeWidget.InternalMove)
+      self.setColumnCount(2)
+      self.setHeaderLabels(["Name", "Type"])
 
    def drawRow(self, painter, option, index):
       item = self.itemFromIndex(index)
       if item is None:
          return
 
-      item_type = item.text(1)
-      directory_path = self.parent().directory_input.text()
-      item_path = os.path.join(directory_path, item.text(0))
+      node = item.data(0, Qt.UserRole)
+      font = QFont()
+      font.setStyleHint(QFont.Monospace)
 
-      if item_type == "folder":
-         self.setItemStyle(option, FOLDER_STYLE)
-      elif item_type == "file":
-         self.setItemStyle(option, FILE_STYLE)
-      elif item_type == "inaccessible" or item.isDisabled():
-         self.setItemStyle(option, INACCESSIBLE_STYLE)
-      else:
-         self.setItemStyle(option, OTHER_STYLE)
+      if node.is_generated:
+         option.font = font
+         option.palette.setColor(QPalette.Text, QColor(GENERATED_STYLE))
+      elif node.type == "folder":
+         font.setBold(True)
+         option.font = font
+         option.palette.setColor(QPalette.Text, QColor(FOLDER_STYLE))
+      elif node.type == "file":
+         font.setItalic(True)
+         option.font = font
+         option.palette.setColor(QPalette.Text, QColor(FILE_STYLE))
 
       super().drawRow(painter, option, index)
+
+   def mousePressEvent(self, event):
+      if event.button() == Qt.LeftButton:
+         item = self.currentItem()
+         if item:
+               drag = QDrag(self)
+               mime_data = QMimeData()
+               node = item.data(0, Qt.UserRole)
+               mime_data.setText(node.name)
+               drag.setMimeData(mime_data)
+               drag.exec_(Qt.MoveAction)
+
+   def dropEvent(self, event):
+      if event.mimeData().hasText():
+         item_text = event.mimeData().text()
+         parent_item = self.itemAt(event.pos())
+         if parent_item:
+               parent_node = parent_item.data(0, Qt.UserRole)
+               new_node = Node(item_text, os.path.join(parent_node.path, item_text), 'folder')
+               new_item = QTreeWidgetItem(parent_item, [new_node.name, new_node.type])
+               new_item.setData(0, Qt.UserRole, new_node)
+               parent_item.addChild(new_item)
+               parent_node.add_child(new_node)
+               # Update the template structure
+               command = MoveNodeCommand(self.parent().template, new_node, parent_node)
+               self.parent().observer.push_command(command)
+               command.redo()
+         else:
+               new_item = QTreeWidgetItem(self, [item_text, "folder"])
+               new_node = Node(item_text, os.path.join(self.parent().parent_dir, item_text), 'folder')
+               new_item.setData(0, Qt.UserRole, new_node)
+               self.addTopLevelItem(new_item)
+         event.acceptProposedAction()
+
+   def find_node_by_name(self, name):
+      def traverse(node):
+         if node.name == name:
+               return node
+         for child in node.children:
+               found_node = traverse(child)
+               if found_node:
+                  return found_node
+         return None
+
+      return traverse(self.parent().template.root_node)
    
-   def setItemStyle(self, option, style):
-      font = QFont()
-      font.setBold(style.get("font-weight") == "bold")
-      font.setItalic(style.get("font-style") == "italic")
-      font.setFamily(style.get("font-family", ""))
-      option.font = font
-      option.palette.setColor(QPalette.Text, QColor(style["color"]))
+   def find_item_by_node(self, node):
+      def traverse(item):
+         if item.data(0, Qt.UserRole) == node:
+               return item
+         for i in range(item.childCount()):
+               child_item = item.child(i)
+               found_item = traverse(child_item)
+               if found_item:
+                  return found_item
+         return None
+
+      for i in range(self.topLevelItemCount()):
+         top_level_item = self.topLevelItem(i)
+         found_item = traverse(top_level_item)
+         if found_item:
+               return found_item
+      return None

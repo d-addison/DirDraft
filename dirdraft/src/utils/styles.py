@@ -5,30 +5,16 @@ FOCUSED_ACTION_STYLE = "color: black; font-weight: bold;"
 UNFOCUSED_ACTION_STYLE = "color: gray; font-weight: normal;"
 
 # Folder style
-FOLDER_STYLE = {
-   "color": "green",
-   "font-weight": "bold",
-   "font-style": "normal",
-   "font-family": "Monospace"
-}
+FOLDER_STYLE = "green"
 
 # File style
-FILE_STYLE = {
-   "color": "purple",
-   "font-style": "italic",
-   "font-family": "Monospace"
-}
+FILE_STYLE = "purple"
 
-# Inaccessible style
-INACCESSIBLE_STYLE = {
-   "color": "red",
-   "font-weight": "bold",
-   "font-style": "italic",
-   "font-family": "Monospace"
-}
+# Error style
+ERROR_STYLE = "red"
 
-# Other style
-OTHER_STYLE = {
-   "color": "gray",
-   "font-family": "Monospace"
-}
+# No style
+NO_STYLE = "black"
+
+# Generated node style
+GENERATED_STYLE = "#808080"  # Gray color
