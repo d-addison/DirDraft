@@ -1,17 +1,21 @@
 from PyQt5.QtWidgets import QTreeWidget, QTreeWidgetItem, QStyle
-from PyQt5.QtCore import Qt, QMimeData
+from PyQt5.QtCore import Qt, QMimeData, QUrl, pyqtSignal
 from PyQt5.QtGui import QFont, QColor, QPalette, QPixmap, QDrag, QBrush
 from utils.styles import FOLDER_STYLE, FILE_STYLE, GENERATED_STYLE
 from core.node import Node
 import os
 
 class CustomTreeWidget(QTreeWidget):
+   drop_signal = pyqtSignal(QTreeWidgetItem, list)
+   
    def __init__(self, parent=None):
       super().__init__(parent)
       self.setDragEnabled(True)
-      self.setDragDropMode(QTreeWidget.InternalMove)
+      self.setAcceptDrops(True)
+      self.setDropIndicatorShown(True)
       self.setColumnCount(2)
       self.setHeaderLabels(["Name", "Type"])
+      self.setSelectionMode(QTreeWidget.SingleSelection)
 
    def drawRow(self, painter, option, index):
       item = self.itemFromIndex(index)
@@ -37,15 +41,13 @@ class CustomTreeWidget(QTreeWidget):
       super().drawRow(painter, option, index)
 
    def mousePressEvent(self, event):
-      if event.button() == Qt.LeftButton:
-         item = self.currentItem()
-         if item:
-               drag = QDrag(self)
-               mime_data = QMimeData()
-               node = item.data(0, Qt.UserRole)
-               mime_data.setText(node.name)
-               drag.setMimeData(mime_data)
-               drag.exec_(Qt.MoveAction)
+      item = self.itemAt(event.pos())
+      if item:
+            self.clearSelection()
+            item.setSelected(True)
+      else:
+            self.clearSelection()
+      super().mousePressEvent(event)
 
    def dropEvent(self, event):
       if event.mimeData().hasText():

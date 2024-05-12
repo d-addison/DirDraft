@@ -8,6 +8,7 @@ from core.commands import AddNodeCommand, RemoveNodeCommand, RenameNodeCommand, 
 from gui.custom_tree_widget import CustomTreeWidget
 import os
 import shutil
+from core.template_manager import TemplateManager
 
 class TemplateDesignPage(QWidget):
    def __init__(self, parent=None):
@@ -47,6 +48,24 @@ class TemplateDesignPage(QWidget):
       self.summary_text = QTextEdit()
       self.summary_text.setReadOnly(True)
       main_layout.addWidget(self.summary_text)
+      
+      self.template_manager = TemplateManager()
+      self.current_template_index = None
+
+      # Add a button to create a new template
+      self.new_template_button = QPushButton("New Template")
+      self.new_template_button.clicked.connect(self.create_new_template)
+      button_layout.addWidget(self.new_template_button)
+
+      # Add a button to load an existing template
+      self.load_template_button = QPushButton("Load Template")
+      self.load_template_button.clicked.connect(self.load_templates)
+      button_layout.addWidget(self.load_template_button)
+
+      # Add a button to save the current template
+      self.save_template_button = QPushButton("Save Template")
+      self.save_template_button.clicked.connect(self.save_current_template)
+      button_layout.addWidget(self.save_template_button)
 
       # Set up signals and slots
       self.tree_widget.itemDoubleClicked.connect(self.on_item_double_clicked)
@@ -60,6 +79,7 @@ class TemplateDesignPage(QWidget):
       self.tree_widget.model().dataChanged.connect(self.track_changes)
       self.deleted_nodes = []
       
+      
    def track_changes(self, top_left, bottom_right, roles):
       # Create a QUndoCommand to track the changes made to the QTreeWidget
       command = QUndoCommand()
@@ -70,10 +90,6 @@ class TemplateDesignPage(QWidget):
       # Get the parent directory when the page is shown
       if not self.parent_dir:
          self.parent_dir = QFileDialog.getExistingDirectory(self, "Select Parent Directory")
-         if self.parent_dir:
-               self.template = Template(None)
-               self.template.build_from_directory(self.parent_dir)
-               self.populate_tree_widget(self.template.root_node)
 
    def populate_tree_widget(self, parent_node, parent_item=None):
       for child_node in parent_node.children:
@@ -204,8 +220,55 @@ class TemplateDesignPage(QWidget):
 
       # Populate the children of the expanded item
       self.populate_tree_widget(node, item)
+      
+   def load_templates(self):
+      templates_dir = os.path.join(self.parent_dir, "templates")
+      if os.path.exists(templates_dir):
+         json_files = [f for f in os.listdir(templates_dir) if f.endswith(".json")]
+         if json_files:
+               file_dialog = QFileDialog(self)
+               file_dialog.setNameFilter("JSON Files (*.json)")
+               file_dialog.setFileMode(QFileDialog.ExistingFile)
+               file_dialog.setDirectory(templates_dir)
+               if file_dialog.exec_():
+                  selected_files = file_dialog.selectedFiles()
+                  if selected_files:
+                     file_path = selected_files[0]
+                     try:
+                           template = Template.load_from_file(file_path)
+                           self.template_manager.add_template(template)
+                           self.current_template_index = len(self.template_manager.templates) - 1
+                           self.template = self.template_manager.get_template(self.current_template_index)
+                           self.tree_widget.clear()
+                           self.populate_tree_widget(self.template.root_node)
+                     except Exception as e:
+                           print(f"Error loading template from {file_path}: {e}")
+         else:
+               print(f"No JSON files found in {templates_dir}")
+      else:
+         print(f"Templates directory not found: {templates_dir}")
+
+   def create_new_template(self):
+      template_name, ok = QInputDialog.getText(self, "New Template", "Enter template name:")
+      if ok and template_name:
+         new_template = Template(None, template_name)
+         self.template_manager.add_template(new_template)
+         self.current_template_index = len(self.template_manager.templates) - 1
+         self.template = self.template_manager.get_template(self.current_template_index)
+         self.tree_widget.clear()
+         self.populate_tree_widget(self.template.root_node)
+
+   def save_current_template(self):
+      if self.current_template_index is not None:
+         self.template_manager.templates[self.current_template_index] = self.template
+         self.template_manager.save_template(self.parent_dir + "/templates/", self.template.name)
+      else:
+         print("No template loaded")
 
    def execute_template(self):
+      # Save the current template before executing
+      # self.save_current_template()
+      
       # Clear the summary text
       self.summary_text.clear()
       

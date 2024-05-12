@@ -23,3 +23,25 @@ class Node:
 
    def move(self, new_path):
       self.path = new_path
+      
+   def serialize(self):
+      serialized_node = {
+         'name': self.name,
+         'path': self.path,
+         'type': self.type,
+         'is_generated': self.is_generated,
+         'children': [child.serialize() for child in self.children]
+      }
+      return serialized_node
+
+   @classmethod
+   def deserialize(cls, serialized_data):
+      name = serialized_data['name']
+      path = serialized_data['path']
+      node_type = serialized_data['type']
+      is_generated = serialized_data['is_generated']
+      node = cls(name, path, node_type, is_generated)
+      for child_data in serialized_data['children']:
+         child_node = cls.deserialize(child_data)
+         node.add_child(child_node)
+      return node

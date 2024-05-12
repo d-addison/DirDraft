@@ -1,14 +1,19 @@
 from core.node import Node
 import os
+import json
 
 class Template:
-   def __init__(self, root_node):
+   def __init__(self, root_node, name=None):
+      if root_node is None:
+         root_node = Node("Root", "", "folder", is_generated=True)
       self.root_node = root_node
+      self.name = name
 
    def build_from_directory(self, directory_path):
-      # Create the root node
-      root_name = os.path.basename(directory_path)
-      self.root_node = Node(root_name, directory_path, 'folder', is_generated=True)
+      if self.root_node is None:
+         # Create the root node
+         root_name = os.path.basename(directory_path)
+         self.root_node = Node(root_name, directory_path, 'folder', is_generated=True)
 
       # Recursively build the template structure
       self._build_nodes(directory_path, self.root_node)
@@ -65,3 +70,21 @@ class Template:
                traverse_nodes(child)
 
       traverse_nodes(self.root_node)
+      
+   def save_to_file(self, file_path):
+      template_data = {
+         'name': self.name,
+         'root_node': self.root_node.serialize()
+      }
+      with open(file_path, 'w') as file:
+         json.dump(template_data, file)
+
+   @classmethod
+   def load_from_file(cls, file_path):
+      with open(file_path, 'r') as file:
+         template_data = json.load(file)
+      root_node = Node.deserialize(template_data['root_node'])
+      return cls(root_node, template_data['name'])
+
+   def set_name(self, name):
+      self.name = name
