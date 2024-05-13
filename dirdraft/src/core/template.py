@@ -84,7 +84,8 @@ class Template:
       with open(file_path, 'r') as file:
          template_data = json.load(file)
       root_node = Node.deserialize(template_data['root_node'])
-      return cls(root_node, template_data['name'])
+      template = cls(root_node, template_data['name'])
+      return template
 
    def set_name(self, name):
       self.name = name

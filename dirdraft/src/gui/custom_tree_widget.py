@@ -1,9 +1,10 @@
 from PyQt5.QtWidgets import QTreeWidget, QTreeWidgetItem, QStyle
-from PyQt5.QtCore import Qt, QMimeData, QUrl, pyqtSignal
-from PyQt5.QtGui import QFont, QColor, QPalette, QPixmap, QDrag, QBrush
-from utils.styles import FOLDER_STYLE, FILE_STYLE, GENERATED_STYLE
+from PyQt5.QtCore import Qt, QMimeData, QUrl, pyqtSignal, QRectF
+from PyQt5.QtGui import QFont, QColor, QPalette, QPixmap, QDrag, QBrush, QTextDocument
+from utils.styles import FOLDER_STYLE, FILE_STYLE, GENERATED_STYLE, TAG_STYLES, TAG_PRECEDENCE, NO_STYLE
 from core.node import Node
 import os
+from utils.html_delegate import HTMLDelegate
 
 class CustomTreeWidget(QTreeWidget):
    drop_signal = pyqtSignal(QTreeWidgetItem, list)
@@ -13,9 +14,10 @@ class CustomTreeWidget(QTreeWidget):
       self.setDragEnabled(True)
       self.setAcceptDrops(True)
       self.setDropIndicatorShown(True)
-      self.setColumnCount(2)
-      self.setHeaderLabels(["Name", "Type"])
+      self.setColumnCount(3)
+      self.setHeaderLabels(["Name", "Type", "Tags"])
       self.setSelectionMode(QTreeWidget.SingleSelection)
+      self.setItemDelegate(HTMLDelegate())
 
    def drawRow(self, painter, option, index):
       item = self.itemFromIndex(index)
@@ -26,19 +28,62 @@ class CustomTreeWidget(QTreeWidget):
       font = QFont()
       font.setStyleHint(QFont.Monospace)
 
-      if node.is_generated:
-         option.font = font
-         option.palette.setColor(QPalette.Text, QColor(GENERATED_STYLE))
-      elif node.type == "folder":
-         font.setBold(True)
-         option.font = font
-         option.palette.setColor(QPalette.Text, QColor(FOLDER_STYLE))
-      elif node.type == "file":
-         font.setItalic(True)
-         option.font = font
-         option.palette.setColor(QPalette.Text, QColor(FILE_STYLE))
+      # Determine the tag style to apply based on precedence
+      tag_style = self.get_tag_style(node)
+
+      # Set the font and text styles based on the tag style
+      option.font = font
+      option.text_style = tag_style if tag_style else NO_STYLE
+
+      # Handle column-specific content and styling
+      if index.column() == 0:  # Name column
+         print("Name tag_style: " + tag_style)
+         option.text = self.get_styled_text(node.name, option.text_style)
+         print("Name result: " + option.text)
+      elif index.column() == 1:  # Type column
+         print("Type tag_style: " + tag_style)
+         option.text = self.get_styled_text(node.type, option.text_style)
+         print("Type result: " + option.text)
+      elif index.column() == 2:  # Tags column
+         option.text = self.get_tags_html(node)
+         print("Tags result: " + option.text)
+      option.textElideMode = Qt.ElideNone  # Disable text eliding
 
       super().drawRow(painter, option, index)
+
+      # Draw the text with the specified font and color
+      painter.save()
+      painter.setFont(option.font)
+
+      doc = QTextDocument()
+      doc.setHtml(option.text)
+      doc.setDocumentMargin(0)
+      painter.translate(option.rect.x(), option.rect.y())
+      doc.drawContents(painter, QRectF(0, 0, option.rect.width(), option.rect.height()))
+
+      painter.restore()
+
+   def get_tag_style(self, node):
+      for tag in TAG_PRECEDENCE:
+         if tag in node.tags:
+            return TAG_STYLES[tag]
+      return None
+
+   def get_styled_text(self, text, style):
+      if style:
+         return f"<span style='{style}'>{text}</span>"
+      else:
+         return text
+
+   def get_tags_html(self, node):
+      tag_styles = []
+      for tag in node.tags:
+         if tag in TAG_STYLES:
+               tag_styles.append(f"<span style='{TAG_STYLES[tag]}'>{tag}</span>")
+         else:
+               tag_styles.append(tag)
+      tags_with_styles = ", ".join(tag_styles)
+      return tags_with_styles
 
    def mousePressEvent(self, event):
       item = self.itemAt(event.pos())
