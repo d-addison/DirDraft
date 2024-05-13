@@ -1,16 +1,53 @@
-from PyQt5.QtWidgets import QTreeWidget, QTreeWidgetItem, QStyle
+from PyQt5.QtWidgets import QTreeWidget, QTreeWidgetItem
 from PyQt5.QtCore import Qt, QMimeData, QUrl, pyqtSignal, QRectF
 from PyQt5.QtGui import QFont, QColor, QPalette, QPixmap, QDrag, QBrush, QTextDocument
 from utils.styles import FOLDER_STYLE, FILE_STYLE, GENERATED_STYLE, TAG_STYLES, TAG_PRECEDENCE, NO_STYLE
 from core.node import Node
 import os
 from utils.html_delegate import HTMLDelegate
+from gui.ui_commands import MoveNodeCommand
+
+import logging
+
+class CustomTreeWidgetItem(QTreeWidgetItem):
+   def __init__(self, node):
+      super().__init__()
+      self.logger = logging.getLogger(__name__)
+      self.node = node
+      self.styling_enabled = False
+      # Set the node name
+      self.setText(0, self.node.name)
+
+      # Set the node type
+      self.setText(1, self.node.type)
+
+      # Set the tags with styles
+      tags_with_styles = self.apply_tag_styles()
+      self.setText(2, tags_with_styles)
+
+      # Associate the Node object with the item
+      self.setData(0, Qt.UserRole, self.node)
+
+   def apply_tag_styles(self):
+      tag_styles = []
+      for tag in self.node.tags:
+         if self.styling_enabled and tag in TAG_STYLES:
+               tag_styles.append(f"<span style='{TAG_STYLES[tag]}'>{tag}</span>")
+         else:
+               tag_styles.append(tag)
+      tags_with_styles = ", ".join(tag_styles)
+      return tags_with_styles
+
+   def toggle_styling(self):
+      self.styling_enabled = not self.styling_enabled
+      self.emitDataChanged()
 
 class CustomTreeWidget(QTreeWidget):
    drop_signal = pyqtSignal(QTreeWidgetItem, list)
-   
+
    def __init__(self, parent=None):
       super().__init__(parent)
+      self.logger = logging.getLogger(__name__)
       self.setDragEnabled(True)
       self.setAcceptDrops(True)
       self.setDropIndicatorShown(True)
@@ -18,13 +55,67 @@ class CustomTreeWidget(QTreeWidget):
       self.setHeaderLabels(["Name", "Type", "Tags"])
       self.setSelectionMode(QTreeWidget.SingleSelection)
       self.setItemDelegate(HTMLDelegate())
+      self.stylized_display = False
+
+   def data(self, index, role):
+      if role == Qt.DisplayRole:
+         item = self.itemFromIndex(index)
+         if item is not None and index.column() == 2:  # Tags column
+               node = item.data(0, Qt.UserRole)
+               return item.apply_tag_styles()
+      return super().data(index, role)
+
+   def create_item(self, node, parent_item=None):
+      child_item = CustomTreeWidgetItem(node)
+
+      if parent_item:
+         parent_item.addChild(child_item)
+         if node.type == 'folder':
+            child_item.setExpanded(True)
+      else:
+         self.addTopLevelItem(child_item)
+
+      return child_item
+
+   def populate_tree_widget(self, parent_node, parent_item=None):
+      for child_node in parent_node.children:
+         child_item = self.find_or_create_item(child_node, parent_item)
+
+         if child_node.type == 'folder':
+               child_item.setChildIndicatorPolicy(QTreeWidgetItem.ShowIndicator)
+               child_item.setExpanded(True)  # Set the folder item to be expanded by default
+               self.populate_tree_widget(child_node, child_item)
+
+   def find_or_create_item(self, node, parent_item):
+      # Search for an existing item with the same node
+      for i in range(self.topLevelItemCount() if parent_item is None else parent_item.childCount()):
+         item = self.topLevelItem(i) if parent_item is None else parent_item.child(i)
+         if isinstance(item, CustomTreeWidgetItem) and item.node == node:
+               return item
+
+      # If no existing item is found, create a new one
+      child_item = self.create_item(node, parent_item)
+
+      return child_item
+
+   def set_styling_mode(self, enabled):
+      self.stylized_display = enabled
+      self.clear()
+      self.populate_tree_widget(self.parent().template.root_node)
+
+   def toggle_item_styling(self, item):
+      item.toggle_styling()
+      for i in range(item.childCount()):
+         child_item = item.child(i)
+         self.toggle_item_styling(child_item)
+      self.repaint()
 
    def drawRow(self, painter, option, index):
       item = self.itemFromIndex(index)
       if item is None:
          return
 
-      node = item.data(0, Qt.UserRole)
+      node = item.node
       font = QFont()
       font.setStyleHint(QFont.Monospace)
 
@@ -37,19 +128,12 @@ class CustomTreeWidget(QTreeWidget):
 
       # Handle column-specific content and styling
       if index.column() == 0:  # Name column
-         print("Name tag_style: " + tag_style)
          option.text = self.get_styled_text(node.name, option.text_style)
-         print("Name result: " + option.text)
       elif index.column() == 1:  # Type column
-         print("Type tag_style: " + tag_style)
          option.text = self.get_styled_text(node.type, option.text_style)
-         print("Type result: " + option.text)
       elif index.column() == 2:  # Tags column
          option.text = self.get_tags_html(node)
-         print("Tags result: " + option.text)
       option.textElideMode = Qt.ElideNone  # Disable text eliding
-
-      super().drawRow(painter, option, index)
 
       # Draw the text with the specified font and color
       painter.save()
@@ -63,15 +147,17 @@ class CustomTreeWidget(QTreeWidget):
 
       painter.restore()
 
+      super().drawRow(painter, option, index)
+
    def get_tag_style(self, node):
       for tag in TAG_PRECEDENCE:
          if tag in node.tags:
-            return TAG_STYLES[tag]
+               return TAG_STYLES[tag]
       return None
 
    def get_styled_text(self, text, style):
       if style:
-         return f"<span style='{style}'>{text}</span>"
+         return f"<span style='color:{style}'>{text}</span>"
       else:
          return text
 
@@ -88,10 +174,10 @@ class CustomTreeWidget(QTreeWidget):
    def mousePressEvent(self, event):
       item = self.itemAt(event.pos())
       if item:
-            self.clearSelection()
-            item.setSelected(True)
+         self.clearSelection()
+         item.setSelected(True)
       else:
-            self.clearSelection()
+         self.clearSelection()
       super().mousePressEvent(event)
 
    def dropEvent(self, event):
@@ -99,19 +185,17 @@ class CustomTreeWidget(QTreeWidget):
          item_text = event.mimeData().text()
          parent_item = self.itemAt(event.pos())
          if parent_item:
-               parent_node = parent_item.data(0, Qt.UserRole)
+               parent_node = parent_item.node
                new_node = Node(item_text, os.path.join(parent_node.path, item_text), 'folder')
-               new_item = QTreeWidgetItem(parent_item, [new_node.name, new_node.type])
+               new_item = CustomTreeWidgetItem(new_node)
                new_item.setData(0, Qt.UserRole, new_node)
                parent_item.addChild(new_item)
                parent_node.add_child(new_node)
                # Update the template structure
                command = MoveNodeCommand(self.parent().template, new_node, parent_node)
                self.parent().observer.push_command(command)
-               command.redo()
          else:
-               new_item = QTreeWidgetItem(self, [item_text, "folder"])
-               new_node = Node(item_text, os.path.join(self.parent().parent_dir, item_text), 'folder')
+               new_item = CustomTreeWidgetItem(Node(item_text, os.path.join(self.parent().parent_dir, item_text), 'folder'))
                new_item.setData(0, Qt.UserRole, new_node)
                self.addTopLevelItem(new_item)
          event.acceptProposedAction()
@@ -127,10 +211,10 @@ class CustomTreeWidget(QTreeWidget):
          return None
 
       return traverse(self.parent().template.root_node)
-   
+
    def find_item_by_node(self, node):
       def traverse(item):
-         if item.data(0, Qt.UserRole) == node:
+         if isinstance(item, CustomTreeWidgetItem) and item.node == node:
                return item
          for i in range(item.childCount()):
                child_item = item.child(i)

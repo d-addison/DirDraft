@@ -1,16 +1,12 @@
 import logging
 
-"""
-Sets up logging for the application.
-
-Functions:
-- setup_logger(): Configures and returns a logger instance for the application.
-"""
-
 def setup_logger():
-   logger = logging.getLogger("dirdraft")
-   logger.setLevel(logging.DEBUG)
+   # Create a file handler
+   file_handler = logging.FileHandler("dirdraft.log")
+   file_handler.setLevel(logging.INFO)
 
-   # Add logging configuration code here
+   # Create a console handler
+   console_handler = logging.StreamHandler()
+   console_handler.setLevel(logging.INFO)
 
-   return logger
+   return file_handler, console_handler
