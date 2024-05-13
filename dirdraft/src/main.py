@@ -1,6 +1,7 @@
 import sys
 import logging
 from PyQt5.QtWidgets import QApplication
+from PyQt5.QtGui import QIcon, QImage, QPixmap
 from gui.main_window import MainWindow
 from utils.logger import setup_logger
 
@@ -22,6 +23,12 @@ def main(directory):
          logger.addHandler(console_handler)
 
    app = QApplication([])
+   
+   icon_path = "src/gui/icons/app_icon.png"
+   pixmap = QPixmap(icon_path)
+   app_icon = QIcon(pixmap)
+   app.setWindowIcon(app_icon)
+   
    main_window = MainWindow()
    main_window.show()
    sys.exit(app.exec_())
