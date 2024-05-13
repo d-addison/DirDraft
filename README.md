@@ -124,6 +124,9 @@ The Folder Structure Visualization and Restructuring Utility is a cross-platform
 - Development environment has been setup
 - Working on making a mockup/wireframe using Balsamiq
 
+## Diagrams
+![UML Diagram](uml_diagram.png)
+
 ## Technologies and Tools
 - Programming Language: Python
 - GUI Framework: PyQt or PySide
