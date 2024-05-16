@@ -2,9 +2,10 @@ import os
 import shutil
 import logging
 
-from PyQt5.QtWidgets import QCheckBox, QListWidget, QListWidgetItem, QAbstractItemView, QDialogButtonBox, QDialog, QMessageBox, QUndoCommand, QUndoStack, QWidget, QVBoxLayout, QTreeWidget, QTreeWidgetItem, QInputDialog, QLineEdit, QFileDialog, QMenu, QPushButton, QHBoxLayout, QTextEdit
+from PyQt5.QtWidgets import QLabel, QCheckBox, QListWidget, QListWidgetItem, QAbstractItemView, QDialogButtonBox, QDialog, QMessageBox, QUndoCommand, QUndoStack, QWidget, QVBoxLayout, QTreeWidget, QTreeWidgetItem, QInputDialog, QLineEdit, QFileDialog, QMenu, QPushButton, QHBoxLayout, QTextEdit
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QDrag, QColor
+from collections import defaultdict
 
 from core.node import Node
 from core.template import Template
@@ -41,6 +42,8 @@ class TemplateDesignPage(QWidget):
       self.load_template_button = QPushButton("Load Template")
       self.save_template_button = QPushButton("Save Template")
       self.stylized_checkbox = QCheckBox("Stylized")
+      self.unsaved_changes_indicator = QLabel()
+      self.unsaved_changes_indicator.setStyleSheet("QLabel { color: red; font-weight: bold; }")
 
       # Add buttons to the button layout
       button_layout.addWidget(self.execute_button)
@@ -50,6 +53,7 @@ class TemplateDesignPage(QWidget):
       button_layout.addWidget(self.load_template_button)
       button_layout.addWidget(self.save_template_button)
       button_layout.addWidget(self.stylized_checkbox)
+      button_layout.addWidget(self.unsaved_changes_indicator)
 
       # Create a QTreeWidget to display the template structure
       self.tree_widget = CustomTreeWidget(self)
@@ -125,44 +129,22 @@ class TemplateDesignPage(QWidget):
       template_name, ok = QInputDialog.getText(self, "New Template", "Enter template name:")
       if ok and template_name:
          # Create a new template with a root node
-         root_node = Node("Root", "", "folder", tags=["folder", "generated"])
-         new_template = Template(root_node, template_name)
+         new_template = Template(None, template_name)
 
          self.template_manager.add_template(new_template)
          self.current_template_index = len(self.template_manager.templates) - 1
          self.template = self.template_manager.get_template(self.current_template_index)
          
          # Push the AddNodeCommand for the root node
-         add_root_node_command = AddNodeCommand(new_template, None, root_node, self.tree_widget)
+         add_root_node_command = AddNodeCommand(new_template, None, self.template.root_node, self.tree_widget)
          self.observer.push_command(add_root_node_command)
          
-         self.tree_widget.clear()
-         self.tree_widget.populate_tree_widget(self.template.root_node)
+         #self.tree_widget.clear()
+         #self.tree_widget.populate_tree_widget(self.template.root_node)
 
          # Update the header label with the template name
          #self.tree_widget.setWindowTitle([f"Template Structure: {template_name}"])
          # TODO: Have window title displayed somewhere else
-
-   def populate_tree_widget(self, parent_node, parent_item=None):
-      for child_node in parent_node.children:
-         child_item = self.find_or_create_item(child_node, parent_item)
-
-         if child_node.type == 'folder':
-               child_item.setChildIndicatorPolicy(QTreeWidgetItem.ShowIndicator)
-               child_item.setExpanded(True)  # Set the folder item to be expanded by default
-               self.populate_tree_widget(child_node, child_item)
-               
-   def find_or_create_item(self, node, parent_item):
-      # Search for an existing item with the same node
-      for i in range(self.tree_widget.topLevelItemCount() if parent_item is None else parent_item.childCount()):
-         item = self.tree_widget.topLevelItem(i) if parent_item is None else parent_item.child(i)
-         if isinstance(item, CustomTreeWidgetItem) and item.node == node:
-            return item
-
-      # If no existing item is found, create a new one
-      child_item = self.tree_widget.create_item(node, parent_item)
-
-      return child_item
       
    def toggle_display_mode(self):
       self.tree_widget.set_styling_mode(self.stylized_checkbox.isChecked())
@@ -172,7 +154,11 @@ class TemplateDesignPage(QWidget):
    def on_item_double_clicked(self, item, column):
       # Handle double-clicking on an item
       node = item.data(0, Qt.UserRole)
-      print(node)
+      self.logger.debug(f"Double-clicked on {node}")
+      
+   def refresh_tree_widget(self):
+      self.tree_widget.clear()
+      self.tree_widget.populate_tree_widget(self.template.root_node)
 
    def show_context_menu(self, position):
       # Get the item at the right-click position
@@ -190,9 +176,11 @@ class TemplateDesignPage(QWidget):
       action = menu.exec_(self.tree_widget.mapToGlobal(position))
 
       if action == add_directory_action:
-         self.add_directory(item, self.template.root_node if item is None else item.data(0, Qt.UserRole))
+         parent_node = self.template.root_node if item is None else item.data(0, Qt.UserRole)
+         self.add_directory(parent_node)
       elif action == add_file_action:
-         self.add_file(item, self.template.root_node if item is None else item.data(0, Qt.UserRole))
+         parent_node = self.template.root_node if item is None else item.data(0, Qt.UserRole)
+         self.add_file(parent_node)
       elif item and action == rename_action:
          # Handle renaming the item
          node = item.data(0, Qt.UserRole)
@@ -202,7 +190,7 @@ class TemplateDesignPage(QWidget):
          node = item.data(0, Qt.UserRole)
          self.delete_node(item, node)
 
-   def add_directory(self, parent_item, parent_node):
+   def add_directory(self, parent_node):
       while True:
          # Add a new directory to the template structure
          directory_name, ok = QInputDialog.getText(self, "Add Directory", "Enter directory name:")
@@ -210,53 +198,53 @@ class TemplateDesignPage(QWidget):
          if not ok:
                return  # User canceled the input dialog
 
-         # Check if a directory with the same name already exists as a child of the parent node
-         existing_child = next((child for child in parent_node.children if child.type == 'folder' and child.name == directory_name), None)
-         if existing_child:
-               QMessageBox.warning(self, "Duplicate Name", f"A directory with the name '{directory_name}' already exists.")
-         else:
-               new_node = Node(directory_name, os.path.join(parent_node.path, directory_name), 'folder', tags=['folder', 'generated'])
-               selected_tags = self.show_tag_selection_dialog()
-               if selected_tags is not None:
-                  new_node.tags.extend(selected_tags)
-               else:
-                  return
+         new_node, error_message = self.create_new_node(parent_node, 'folder', directory_name)
+         if new_node is None:
+               QMessageBox.warning(self, "Error", error_message)
+               continue  # Ask for a different name
 
-               # Create a new QTreeWidgetItem using the find_or_create_item method
-               new_item = self.find_or_create_item(new_node, parent_item)
-               new_item.setChildIndicatorPolicy(QTreeWidgetItem.ShowIndicator)
-               new_item.setExpanded(True)
+         # Create a new node in the template and update the tree widget
+         command = AddNodeCommand(self.template, parent_node, new_node, self.tree_widget)
+         self.observer.push_command(command)
+         break  # Exit the loop if the name is valid
 
-               command = AddNodeCommand(self.template, parent_node, new_node, self.tree_widget)
-               self.observer.push_command(command)
-               break  # Exit the loop if the name is valid
-
-   def add_file(self, parent_item, parent_node):
+   def add_file(self, parent_node):
       while True:
-         # Add a new file to the template structure
          file_name, ok = QInputDialog.getText(self, "Add File", "Enter file name:")
 
          if not ok:
                return  # User canceled the input dialog
 
-         # Check if a file with the same name already exists as a child of the parent node
-         existing_child = next((child for child in parent_node.children if child.type == 'file' and child.name == file_name), None)
-         if existing_child:
-               QMessageBox.warning(self, "Duplicate Name", f"A file with the name '{file_name}' already exists.")
-         else:
-               new_node = Node(file_name, os.path.join(parent_node.path, file_name), 'file', tags=['file', 'generated'])
-               selected_tags = self.show_tag_selection_dialog()
-               if selected_tags is not None:
-                  new_node.tags.extend(selected_tags)
-               else:
-                  return
+         new_node, error_message = self.create_new_node(parent_node, 'file', file_name)
+         if new_node is None:
+               QMessageBox.warning(self, "Error", error_message)
+               continue  # Ask for a different name
 
-               # Create a new QTreeWidgetItem using the find_or_create_item method
-               new_item = self.find_or_create_item(new_node, parent_item)
+         # Create a new node in the template and update the tree widget
+         command = AddNodeCommand(self.template, parent_node, new_node, self.tree_widget)
+         self.observer.push_command(command)
+         break  # Exit the loop if the name is valid
+            
+   def create_new_node(self, parent_node, node_type, node_name):
+      # Create a new node
+      new_node_path = os.path.join(parent_node.path, node_name)
+      new_node = Node(node_name, new_node_path, node_type, tags=[node_type, 'generated'])
 
-               command = AddNodeCommand(self.template, parent_node, new_node, self.tree_widget)
-               self.observer.push_command(command)
-               break  # Exit the loop if the name is valid
+      # Show the tag selection dialog
+      selected_tags = self.show_tag_selection_dialog()
+      if selected_tags is not None:
+         new_node.tags.extend(selected_tags)
+      else:
+         # User canceled the tag selection dialog
+         return None, "Tag selection canceled"
+
+      # Add the new node to the template
+      try:
+         self.template.add_node(parent_node, new_node)
+      except Exception as e:
+         return None, str(e)
+
+      return new_node, None
          
    def rename_node(self, item, node):
       # Rename the node
@@ -264,18 +252,12 @@ class TemplateDesignPage(QWidget):
       if ok and new_name:
          selected_tags = self.show_tag_selection_dialog(existing_tags=node.tags)
          if selected_tags is not None:
-               node.insert_tags(['renamed'])
-               node.insert_tags(selected_tags)
-               node.rename(new_name)
+            node.insert_tags(['renamed'])
+            node.insert_tags(selected_tags)
+            node.rename(new_name)
 
-               # Update the QTreeWidgetItem with the new node data
-               parent_item = item.parent()
-               self.tree_widget.takeTopLevelItem(self.tree_widget.indexOfTopLevelItem(item))
-               new_item = self.find_or_create_item(node, parent_item)
-
-               command = RenameNodeCommand(self.template, node, new_name, self.tree_widget)
-               command.item = new_item  # Store the new QTreeWidgetItem
-               self.observer.push_command(command)
+            command = RenameNodeCommand(self.template, node, new_name, self.tree_widget)
+            self.observer.push_command(command)
 
    def delete_node(self, item, node):
       # Delete the node if the file already exists, otherwise remove from deleted_nodes queue
@@ -296,8 +278,17 @@ class TemplateDesignPage(QWidget):
       # Clear the existing children of the expanded item
       item.takeChildren()
 
-      # Populate the children of the expanded item
-      self.tree_widget.populate_tree_widget(node, item)
+      # If the node has no children, return
+      if not node.children:
+         return
+
+      # Create child items for the expanded item
+      for child_node in node.children:
+         existing_item = self.tree_widget.find_item_by_node(child_node)
+         if existing_item:
+               item.addChild(existing_item)
+         else:
+               child_item = self.tree_widget.find_or_create_item(child_node, item)
       
    def load_templates(self):
       templates_dir = os.path.join(self.parent_dir, "templates")
@@ -316,9 +307,9 @@ class TemplateDesignPage(QWidget):
                      self.template_manager.add_template(template)
                      self.current_template_index = len(self.template_manager.templates) - 1
                      self.template = self.template_manager.get_template(self.current_template_index)
+                     self.set_unsaved_changes(False)
                      self.tree_widget.clear()
                      self.tree_widget.populate_tree_widget(self.template.root_node)
-                     
                      self.logger.info(f"Loaded template from {file_path}")
 
                      # Update the header label with the template name
@@ -364,21 +355,25 @@ class TemplateDesignPage(QWidget):
    def execute_template(self):
       # Save the current template before executing
       # self.save_current_template()
-      
+
       # Clear the summary text
       self.summary_text.clear()
-      
+
       # Delete the files in the deleted_nodes list
       for node in self.deleted_nodes:
          file_path = os.path.join(self.parent_dir, node.path)
          command = DeleteFileCommand(self, node, f"Delete file: {node.name}")
          self.observer.push_command(command)
-      
+
       # Clear the deleted_nodes list
       self.deleted_nodes.clear()
 
-      # Create the directory structure based on the template
-      self.create_directory_structure(self.template.root_node, self.parent_dir)
+      # Perform topological sort on the template
+      sorted_nodes = topological_sort(self.template.root_node)
+
+      # Create the directory structure based on the sorted nodes
+      for node in sorted_nodes:
+         self.create_node(node, self.parent_dir)
 
       # Clear the existing tree widget items
       self.tree_widget.clear()
@@ -387,6 +382,43 @@ class TemplateDesignPage(QWidget):
       self.template = Template(None)
       self.template.build_from_directory(self.parent_dir)
       self.tree_widget.populate_tree_widget(self.template.root_node)
+
+   def create_node(self, node, parent_dir):
+      node_path = os.path.join(parent_dir, node.name)
+      old_node_path = None
+
+      if node.type == 'folder':
+         # If the node is a directory
+         if os.path.exists(node_path):
+               # If the directory already exists, get the old path
+               old_node_path = node_path
+         else:
+               # If the directory doesn't exist, create it
+               os.makedirs(node_path, exist_ok=True)
+               self.summary_text.append(f"Created directory: {node_path}")
+
+         # Recursively create the directory structure for the child nodes
+         for child_node in node.children:
+               self.create_node(child_node, node_path)
+
+         if old_node_path and old_node_path != node_path:
+               # If the directory was renamed or moved, update the summary
+               self.summary_text.append(f"Renamed/moved directory: {old_node_path} -> {node_path}")
+               node.move(node_path)
+               node.rename(os.path.basename(node_path))
+      else:
+         # If the node is a file
+         file_dir = os.path.dirname(node_path)
+         if not os.path.exists(file_dir):
+               # If the parent directory doesn't exist, create it
+               os.makedirs(file_dir, exist_ok=True)
+               self.summary_text.append(f"Created directory: {file_dir}")
+
+         # If the file doesn't exist, create it
+         if not os.path.exists(node_path):
+               with open(node_path, 'w') as f:
+                  pass
+               self.summary_text.append(f"Created file: {node_path}")
 
    def create_directory_structure(self, parent_node, parent_dir):
       # Iterate over the children of the parent node
@@ -428,6 +460,11 @@ class TemplateDesignPage(QWidget):
                   
    def set_unsaved_changes(self, unsaved_changes):
       self.unsaved_changes = unsaved_changes
+      if self.unsaved_changes:
+         self.unsaved_changes_indicator.setText("* Unsaved Changes")
+      else:
+         self.unsaved_changes_indicator.setText("")
+      self.logger.info(f"Unsaved changes: {self.unsaved_changes}")
       
    def update_window_title(self):
       title = "Template Structure: " + self.template.name
@@ -531,3 +568,32 @@ class TreeWidgetCommand(QUndoCommand):
                   old_path = self.old_paths[(row, column)]
                   if old_path != new_path:
                      shutil.move(old_path, new_path)
+                     
+def topological_sort(root_node):
+   """
+   Perform a topological sort on the nodes of the template.
+   """
+   in_degree = defaultdict(int)
+   graph = defaultdict(list)
+   sorted_nodes = []
+
+   # Calculate the in-degree of each node
+   def calculate_in_degree(node):
+      for child in node.children:
+         in_degree[child] += 1
+         graph[node].append(child)
+         calculate_in_degree(child)
+
+   calculate_in_degree(root_node)
+
+   # Perform topological sort
+   queue = [node for node in in_degree if in_degree[node] == 0]
+   while queue:
+      node = queue.pop(0)
+      sorted_nodes.append(node)
+      for neighbor in graph[node]:
+         in_degree[neighbor] -= 1
+         if in_degree[neighbor] == 0:
+               queue.append(neighbor)
+
+   return sorted_nodes

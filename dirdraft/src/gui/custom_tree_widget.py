@@ -6,42 +6,9 @@ from core.node import Node
 import os
 from utils.html_delegate import HTMLDelegate
 from gui.ui_commands import MoveNodeCommand
+from gui.custom_tree_widget_item import CustomTreeWidgetItem
 
 import logging
-
-class CustomTreeWidgetItem(QTreeWidgetItem):
-   def __init__(self, node):
-      super().__init__()
-      self.logger = logging.getLogger(__name__)
-      self.node = node
-      self.styling_enabled = False
-      # Set the node name
-      self.setText(0, self.node.name)
-
-      # Set the node type
-      self.setText(1, self.node.type)
-
-      # Set the tags with styles
-      tags_with_styles = self.apply_tag_styles()
-      self.setText(2, tags_with_styles)
-
-      # Associate the Node object with the item
-      self.setData(0, Qt.UserRole, self.node)
-
-   def apply_tag_styles(self):
-      tag_styles = []
-      for tag in self.node.tags:
-         if self.styling_enabled and tag in TAG_STYLES:
-               tag_styles.append(f"<span style='{TAG_STYLES[tag]}'>{tag}</span>")
-         else:
-               tag_styles.append(tag)
-      tags_with_styles = ", ".join(tag_styles)
-      return tags_with_styles
-
-   def toggle_styling(self):
-      self.styling_enabled = not self.styling_enabled
-      self.emitDataChanged()
-
 class CustomTreeWidget(QTreeWidget):
    drop_signal = pyqtSignal(QTreeWidgetItem, list)
 
@@ -56,6 +23,8 @@ class CustomTreeWidget(QTreeWidget):
       self.setSelectionMode(QTreeWidget.SingleSelection)
       self.setItemDelegate(HTMLDelegate())
       self.stylized_display = False
+      self.populated_nodes = set()
+      self.logger.info("Created CustomTreeWidget")
 
    def data(self, index, role):
       if role == Qt.DisplayRole:
@@ -70,21 +39,38 @@ class CustomTreeWidget(QTreeWidget):
 
       if parent_item:
          parent_item.addChild(child_item)
-         if node.type == 'folder':
-            child_item.setExpanded(True)
       else:
          self.addTopLevelItem(child_item)
+         
+      self.logger.info(f"Created item: {node.name}, {node.path}, {node.type}, {node.tags}, {node.is_generated}")
 
       return child_item
 
    def populate_tree_widget(self, parent_node, parent_item=None):
-      for child_node in parent_node.children:
-         child_item = self.find_or_create_item(child_node, parent_item)
+      # Recursively generate the tree widget items
+      # If node has no children, it is a leaf node, create a tree widget item
+      # If a node has children, it is a parent node
 
-         if child_node.type == 'folder':
-               child_item.setChildIndicatorPolicy(QTreeWidgetItem.ShowIndicator)
-               child_item.setExpanded(True)  # Set the folder item to be expanded by default
-               self.populate_tree_widget(child_node, child_item)
+      if parent_node.children is None:
+         return
+
+      if parent_node.get_root_status():
+         self.logger.info(f"Root node: {parent_node.name}")
+         root_item = self.create_item(parent_node)
+         self.addTopLevelItem(root_item)
+
+      for child_node in parent_node.children:
+         if child_node not in self.populated_nodes:
+               child_item = self.find_or_create_item(child_node, parent_item)
+               self.populated_nodes.add(child_node)
+
+               if child_node.type == 'folder':
+                  self.populate_tree_widget(child_node, child_item)
+                  
+      # Expand the root item after adding its child items
+      if parent_item is None:
+         root_item.setExpanded(True)
+         root_item.setChildIndicatorPolicy(QTreeWidgetItem.ShowIndicator)
 
    def find_or_create_item(self, node, parent_item):
       # Search for an existing item with the same node

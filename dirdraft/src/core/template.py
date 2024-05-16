@@ -5,15 +5,29 @@ import logging
 class Template:
    def __init__(self, root_node, name=None):
       self.logger = logging.getLogger(__name__)
+      
       if root_node is None:
-         root_node = Node("Root", "", "folder", is_generated=True)
+         root_node = Node("Root", "", "folder", tags=["root_node"], is_generated=True, root=True)
          self.logger.info(f"No root node specified. Creating a root node with name: {root_node.name}")
+      else:
+         # Validate root node
+         if not isinstance(root_node, Node):
+            raise TypeError("Root node must be an instance of Node")
+         if root_node.type != 'folder':
+            raise ValueError("Root node must be a folder")
+         
+      if name and (not name or name.isspace()):
+         raise ValueError("Template name cannot be empty or contain only whitespace characters")
+      
       self.root_node = root_node
       self.name = name
       self.logger.info(f"Created template: {self.name}")
       
    def __repr__(self):
       return self._recursive_repr(self.root_node, 0)
+
+   def __del__(self):
+      self.logger.info(f"Deleted template: {self.name}")
 
    def _recursive_repr(self, node, indent_level):
       indent = '  ' * indent_level
@@ -23,6 +37,9 @@ class Template:
          node_repr += self._recursive_repr(child, indent_level + 1)
 
       return node_repr
+
+   def get_structure(self):
+      print(self)
 
    def build_from_directory(self, directory_path):
       if self.root_node is None:
@@ -60,20 +77,29 @@ class Template:
    def add_node(self, parent_node, new_node):
       # Add a new node to the template
       if parent_node is None:
-         parent_node = self.root_node
-         self.logger.info(f"No parent node specified. Adding node to root node: {parent_node.name}")
+         # If no parent node is specified, set the new node as the root node
+         # if the template doesn't have a root node yet
+         if self.root_node is None:
+               new_node.set_root_status(True)
+               self.root_node = new_node
+               self.logger.info(f"Set '{new_node.name}' as the root node")
+         else:
+               # Otherwise, add the new node as a child of the root node
+               parent_node = self.root_node
+               self.logger.info(f"No parent node specified. Adding node to root node: {parent_node.name}")
       else:
-         parent_node.add_child(new_node)
-         self.logger.info(f"Added node '{new_node.name}' to '{parent_node.name}'")
+         # Validate parent node
+         if not isinstance(parent_node, Node):
+               raise TypeError("Parent node must be an instance of Node")
+         if parent_node.type != 'folder':
+               raise ValueError("Parent node must be a folder")
 
-   def remove_node(self, node):
-      # Remove a node from the template
-      parent_node = self.find_parent_node(node)
-      if parent_node:
-         parent_node.remove_child(node)
-         self.logger.info(f"Removed node '{node.name}' from '{parent_node.name}'")
-      else:
-         self.logger.warning(f"Node '{node.name}' has no parent node. Cannot remove node.")
+         # Check for duplicate node names within the same parent directory
+         if parent_node != self.root_node and any(child.name == new_node.name for child in parent_node.children):
+            raise ValueError(f"Duplicate node name '{new_node.name}' in parent directory '{parent_node.name}'")
+
+      parent_node.add_child(new_node)
+      self.logger.info(f"Added node '{new_node.name}' to '{parent_node.name}'")
 
    def find_parent_node(self, node):
       # Helper function to find the parent node of a given node
