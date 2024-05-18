@@ -41,6 +41,6 @@ class MainWindow(QMainWindow):
    def show_template_design_page(self):
       # Show the TemplateDesignPage
       # TODO: adjust logic here so that user can back out of template design page
-      self.logger.info("Showing TemplateDesignPage")
+      self.logger.info("Showing Template Design Page")
       self.stacked_widget.setCurrentWidget(self.template_design_page)
       self.template_design_page.prompt_directory_selection()

@@ -1,18 +1,19 @@
 import os
 import json
 import logging
-from utils.logger import setup_logger
-file_handler, console_handler = setup_logger()
+from utils.singleton import Singleton
 
 from core.node import Node
 from core.template import Template
 
-class TemplateManager:
+class TemplateManager(metaclass=Singleton):
+   """
+   Singleton class to manage templates. It can store up to 10 templates.
+   """
+   
    def __init__(self):
       self.templates = []
       self.logger = logging.getLogger(__name__)
-      self.logger.addHandler(file_handler)
-      self.logger.addHandler(console_handler)
 
    def add_template(self, template):
       if len(self.templates) < 10:
@@ -47,5 +48,3 @@ class TemplateManager:
       except Exception as e:
          self.logger.error(f"Error loading template from {file_path}: {e}")
          return None
-
-   # TODO: expand to having a "templates" list (up to 10 templates) to work on at a time, save_templates, load_templates, etc.

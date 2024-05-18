@@ -38,11 +38,13 @@ TAG_STYLES = {
    "user_created": "color: black;",
    "folder": "color: green;",
    "file": "color: lightpurple;",
-   "renamed": "color: lightred;"
+   "renamed": "color: lightred;",
+   "root_node": "color: yellow;"
 }
 
 # Tag precedence order
 TAG_PRECEDENCE = [
+   'root_node',
    'generated', 
    'folder', 
    'file', 
@@ -64,3 +66,8 @@ TAG_PRECEDENCE = [
 ]
 
 NO_STYLE = "color: black;"
+
+NAME_COLUMN = 0
+TYPE_COLUMN = 1
+TAGS_COLUMN = 2
+PATH_COLUMN = 3

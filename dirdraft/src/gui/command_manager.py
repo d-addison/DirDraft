@@ -1,9 +1,14 @@
 import logging
+from utils.singleton import Singleton
 
 from gui.ui_commands import AddNodeCommand, RemoveNodeCommand, MoveNodeCommand, RenameNodeCommand
 from PyQt5.QtWidgets import QTreeWidgetItem
 
-class CommandManager:
+class CommandManager(metaclass=Singleton):
+   """ 
+   Singleton class to manage commands. It maintains a stack of commands that can be undone and redone.
+   """
+   
    def __init__(self, tree_widget, template_design_page):
       self.command_stack = []
       self.logger = logging.getLogger(__name__)
@@ -89,24 +94,24 @@ class CommandManager:
       elif isinstance(command, RemoveNodeCommand):
          item = self.tree_widget.find_item_by_node(command.node)
          if item:
-               parent = item.parent()
-               if parent:
-                  parent.removeChild(item)
-               else:
-                  self.tree_widget.takeTopLevelItem(self.tree_widget.indexOfTopLevelItem(item))
+            parent = item.parent()
+            if parent:
+               parent.removeChild(item)
+            else:
+               self.tree_widget.takeTopLevelItem(self.tree_widget.indexOfTopLevelItem(item))
       elif isinstance(command, RenameNodeCommand):
          item = self.tree_widget.find_item_by_node(command.node)
          if item:
-               item.setText(0, command.new_name)
+            item.setText(0, command.new_name)
       elif isinstance(command, MoveNodeCommand):
          node = command.node
          new_parent_item = self.tree_widget.find_item_by_node(command.new_parent_node)
          item = self.tree_widget.find_item_by_node(node)
          if item and new_parent_item:
-               old_parent = item.parent()
-               if old_parent:
-                  old_parent.removeChild(item)
-               new_parent_item.addChild(item)
+            old_parent = item.parent()
+            if old_parent:
+               old_parent.removeChild(item)
+            new_parent_item.addChild(item)
 
    def update_add_node(self, parent_node, new_node):
       parent_item = self.tree_widget.find_item_by_node(parent_node)
@@ -118,9 +123,9 @@ class CommandManager:
       if item:
          parent = item.parent()
          if parent:
-               parent.removeChild(item)
+            parent.removeChild(item)
          else:
-               self.tree_widget.takeTopLevelItem(self.tree_widget.indexOfTopLevelItem(item))
+            self.tree_widget.takeTopLevelItem(self.tree_widget.indexOfTopLevelItem(item))
 
    def update_move_node(self, node, new_parent_node):
       item = self.tree_widget.find_item_by_node(node)
@@ -128,5 +133,5 @@ class CommandManager:
       if item and new_parent_item:
          old_parent = item.parent()
          if old_parent:
-               old_parent.removeChild(item)
+            old_parent.removeChild(item)
          new_parent_item.addChild(item)

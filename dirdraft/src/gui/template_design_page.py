@@ -89,11 +89,15 @@ class TemplateDesignPage(QWidget):
       self.unsaved_changes = False
       self.stylized_checkbox.setChecked(False)
       
+      self.logger.info("Template design page initialized")
+      
    def track_changes(self, top_left, bottom_right, roles):
+      self.logger.info(f"Entering track_changes with args: {top_left}, {bottom_right}, {roles}")
       # Create a QUndoCommand to track the changes made to the QTreeWidget
       command = QUndoCommand()
       command.setText(f"Edit item at ({top_left.row()}, {top_left.column()})")
       self.undo_stack.push(command)
+      self.logger.info(f"Exiting track_changes with result: {command}")
 
    def prompt_directory_selection(self):
       # Prompt the user to select a directory
@@ -103,27 +107,27 @@ class TemplateDesignPage(QWidget):
          # Check if there are any existing templates
          templates_dir = os.path.join(self.parent_dir, "templates")
          if os.path.exists(templates_dir):
-               json_files = [f for f in os.listdir(templates_dir) if f.endswith(".json")]
-               if json_files:
-                  # If there are existing templates, prompt the user to load one or create a new one
-                  message_box = QMessageBox(self)
-                  message_box.setWindowTitle("Template Selection")
-                  message_box.setText("What would you like to do?")
-                  load_button = message_box.addButton("Load Existing Template", QMessageBox.ActionRole)
-                  new_button = message_box.addButton("Create New Template", QMessageBox.ActionRole)
-                  message_box.exec_()
+            json_files = [f for f in os.listdir(templates_dir) if f.endswith(".json")]
+            if json_files:
+               # If there are existing templates, prompt the user to load one or create a new one
+               message_box = QMessageBox(self)
+               message_box.setWindowTitle("Template Selection")
+               message_box.setText("What would you like to do?")
+               load_button = message_box.addButton("Load Existing Template", QMessageBox.ActionRole)
+               new_button = message_box.addButton("Create New Template", QMessageBox.ActionRole)
+               message_box.exec_()
 
-                  if message_box.clickedButton() == load_button:
-                     self.load_templates()
-                  elif message_box.clickedButton() == new_button:
-                     self.create_new_template()
-               else:
-                  # If there are no existing templates, prompt the user to create a new one
+               if message_box.clickedButton() == load_button:
+                  self.load_templates()
+               elif message_box.clickedButton() == new_button:
                   self.create_new_template()
-         else:
-               # If the templates directory doesn't exist, create it and prompt the user to create a new template
-               os.makedirs(templates_dir, exist_ok=True)
+            else:
+               # If there are no existing templates, prompt the user to create a new one
                self.create_new_template()
+         else:
+            # If the templates directory doesn't exist, create it and prompt the user to create a new template
+            os.makedirs(templates_dir, exist_ok=True)
+            self.create_new_template()
                
    def create_new_template(self):
       template_name, ok = QInputDialog.getText(self, "New Template", "Enter template name:")
@@ -191,44 +195,51 @@ class TemplateDesignPage(QWidget):
          self.delete_node(item, node)
 
    def add_directory(self, parent_node):
+      self.logger.info(f"Entering add_directory with args: {parent_node}")
       while True:
          # Add a new directory to the template structure
          directory_name, ok = QInputDialog.getText(self, "Add Directory", "Enter directory name:")
 
          if not ok:
-               return  # User canceled the input dialog
+            self.logger.info("Exiting add_directory with result: user canceled")
+            return  # User canceled the input dialog
 
          new_node, error_message = self.create_new_node(parent_node, 'folder', directory_name)
          if new_node is None:
-               QMessageBox.warning(self, "Error", error_message)
-               continue  # Ask for a different name
+            QMessageBox.warning(self, "Error", error_message)
+            continue  # Ask for a different name
 
          # Create a new node in the template and update the tree widget
          command = AddNodeCommand(self.template, parent_node, new_node, self.tree_widget)
          self.observer.push_command(command)
+         self.logger.info(f"Exiting add_directory with result: {command}")
          break  # Exit the loop if the name is valid
 
    def add_file(self, parent_node):
+      self.logger.info(f"Entering add_file with args: {parent_node}")
       while True:
          file_name, ok = QInputDialog.getText(self, "Add File", "Enter file name:")
 
          if not ok:
-               return  # User canceled the input dialog
+            self.logger.info("Exiting add_file with result: user canceled")
+            return  # User canceled the input dialog
 
          new_node, error_message = self.create_new_node(parent_node, 'file', file_name)
          if new_node is None:
-               QMessageBox.warning(self, "Error", error_message)
-               continue  # Ask for a different name
+            QMessageBox.warning(self, "Error", error_message)
+            continue  # Ask for a different name
 
          # Create a new node in the template and update the tree widget
          command = AddNodeCommand(self.template, parent_node, new_node, self.tree_widget)
          self.observer.push_command(command)
+         self.logger.info(f"Exiting add_file with result: {command}")
          break  # Exit the loop if the name is valid
             
    def create_new_node(self, parent_node, node_type, node_name):
+      self.logger.info(f"Entering create_new_node with args: {parent_node}, {node_type}, {node_name}")
       # Create a new node
       new_node_path = os.path.join(parent_node.path, node_name)
-      new_node = Node(node_name, new_node_path, node_type, tags=[node_type, 'generated'])
+      new_node = Node(node_name, new_node_path, node_type, tags=[node_type])
 
       # Show the tag selection dialog
       selected_tags = self.show_tag_selection_dialog()
@@ -236,6 +247,7 @@ class TemplateDesignPage(QWidget):
          new_node.tags.extend(selected_tags)
       else:
          # User canceled the tag selection dialog
+         self.logger.info("Exiting create_new_node with result: user canceled")
          return None, "Tag selection canceled"
 
       # Add the new node to the template
@@ -244,9 +256,11 @@ class TemplateDesignPage(QWidget):
       except Exception as e:
          return None, str(e)
 
+      self.logger.info(f"Exiting create_new_node with result: {new_node}")
       return new_node, None
          
    def rename_node(self, item, node):
+      self.logger.info(f"Entering rename_node with args: {item}, {node}")
       # Rename the node
       new_name, ok = QInputDialog.getText(self, "Rename", "Enter new name:", text=node.name)
       if ok and new_name:
@@ -258,8 +272,10 @@ class TemplateDesignPage(QWidget):
 
             command = RenameNodeCommand(self.template, node, new_name, self.tree_widget)
             self.observer.push_command(command)
+            self.logger.info(f"Exiting rename_node with result: {command}")
 
    def delete_node(self, item, node):
+      self.logger.info(f"Entering delete_node with args: {item}, {node}")
       # Delete the node if the file already exists, otherwise remove from deleted_nodes queue
       if os.path.exists(node.path):
          self.deleted_nodes.append(node)
@@ -270,6 +286,7 @@ class TemplateDesignPage(QWidget):
          self.tree_widget.takeTopLevelItem(self.tree_widget.indexOfTopLevelItem(item))
       command = RemoveNodeCommand(self.template, node, self.tree_widget)
       self.observer.push_command(command)
+      self.logger.info(f"Exiting delete_node with result: {command}")
       
    def load_children(self, item):
       # Get the node associated with the expanded item
@@ -329,9 +346,9 @@ class TemplateDesignPage(QWidget):
          file_path = os.path.join(templates_dir, f"{template.name}.json")
 
          if os.path.exists(file_path):
-               overwrite_confirmation = QMessageBox.question(self, "Overwrite Template", f"A template with the name '{template.name}' already exists. Do you want to overwrite it?", QMessageBox.Yes | QMessageBox.No)
-               if overwrite_confirmation == QMessageBox.No:
-                  return
+            overwrite_confirmation = QMessageBox.question(self, "Overwrite Template", f"A template with the name '{template.name}' already exists. Do you want to overwrite it?", QMessageBox.Yes | QMessageBox.No)
+            if overwrite_confirmation == QMessageBox.No:
+               return
                
          self.template_manager.save_template(template, file_path)
          self.set_unsaved_changes(False)
@@ -344,81 +361,75 @@ class TemplateDesignPage(QWidget):
          current_template = self.template_manager.templates[self.current_template_index]
          new_name, ok = QInputDialog.getText(self, "Rename Template", "Enter new template name:", text=current_template.name)
          if ok and new_name:
-               current_template.name = new_name
-               self.template.name = new_name
-               #self.tree_widget.setHeaderLabels([f"Template Structure: {new_name}"])
-               self.set_unsaved_changes(True)
-               #self.update_window_title()
+            current_template.name = new_name
+            self.template.name = new_name
+            #self.tree_widget.setHeaderLabels([f"Template Structure: {new_name}"])
+            self.set_unsaved_changes(True)
+            #self.update_window_title()
       else:
          self.logger.error("No template loaded")
 
    def execute_template(self):
+      self.logger.info("Entering execute_template")
       # Save the current template before executing
-      # self.save_current_template()
+      self.save_current_template()
 
       # Clear the summary text
       self.summary_text.clear()
 
-      # Delete the files in the deleted_nodes list
-      for node in self.deleted_nodes:
-         file_path = os.path.join(self.parent_dir, node.path)
-         command = DeleteFileCommand(self, node, f"Delete file: {node.name}")
-         self.observer.push_command(command)
+      # Prompt the user for the base directory
+      base_dir = QFileDialog.getExistingDirectory(self, "Select Base Directory")
 
-      # Clear the deleted_nodes list
-      self.deleted_nodes.clear()
+      if base_dir:
+         # Execute the template with the provided base directory
+         self.template.execute(base_dir)
 
-      # Perform topological sort on the template
-      sorted_nodes = topological_sort(self.template.root_node)
+         # Clear the existing tree widget items
+         self.tree_widget.clear()
 
-      # Create the directory structure based on the sorted nodes
-      for node in sorted_nodes:
-         self.create_node(node, self.parent_dir)
-
-      # Clear the existing tree widget items
-      self.tree_widget.clear()
-
-      # Populate the tree widget with the updated directory structure
-      self.template = Template(None)
-      self.template.build_from_directory(self.parent_dir)
-      self.tree_widget.populate_tree_widget(self.template.root_node)
+         # Populate the tree widget with the updated directory structure
+         self.tree_widget.populate_tree_widget(self.template.root_node)
+      else:
+         self.logger.warning("No base directory selected. Template execution canceled.")
 
    def create_node(self, node, parent_dir):
+      self.logger.info(f"Entering create_node with args: {node}, {parent_dir}")
       node_path = os.path.join(parent_dir, node.name)
       old_node_path = None
 
       if node.type == 'folder':
          # If the node is a directory
          if os.path.exists(node_path):
-               # If the directory already exists, get the old path
-               old_node_path = node_path
+            # If the directory already exists, get the old path
+            old_node_path = node_path
          else:
-               # If the directory doesn't exist, create it
-               os.makedirs(node_path, exist_ok=True)
-               self.summary_text.append(f"Created directory: {node_path}")
+            # If the directory doesn't exist, create it
+            os.makedirs(node_path, exist_ok=True)
+            self.summary_text.append(f"Created directory: {node_path}")
 
          # Recursively create the directory structure for the child nodes
          for child_node in node.children:
-               self.create_node(child_node, node_path)
+            self.create_node(child_node, node_path)
 
          if old_node_path and old_node_path != node_path:
-               # If the directory was renamed or moved, update the summary
-               self.summary_text.append(f"Renamed/moved directory: {old_node_path} -> {node_path}")
-               node.move(node_path)
-               node.rename(os.path.basename(node_path))
+            # If the directory was renamed or moved, update the summary
+            self.summary_text.append(f"Renamed/moved directory: {old_node_path} -> {node_path}")
+            node.move(node_path)
+            node.rename(os.path.basename(node_path))
       else:
          # If the node is a file
          file_dir = os.path.dirname(node_path)
          if not os.path.exists(file_dir):
-               # If the parent directory doesn't exist, create it
-               os.makedirs(file_dir, exist_ok=True)
-               self.summary_text.append(f"Created directory: {file_dir}")
+            # If the parent directory doesn't exist, create it
+            os.makedirs(file_dir, exist_ok=True)
+            self.summary_text.append(f"Created directory: {file_dir}")
 
          # If the file doesn't exist, create it
          if not os.path.exists(node_path):
-               with open(node_path, 'w') as f:
-                  pass
-               self.summary_text.append(f"Created file: {node_path}")
+            with open(node_path, 'w') as f:
+               pass
+            self.summary_text.append(f"Created file: {node_path}")
+      self.logger.info(f"Exiting create_node.") # TODO: improve the logging here
 
    def create_directory_structure(self, parent_node, parent_dir):
       # Iterate over the children of the parent node
@@ -427,44 +438,46 @@ class TemplateDesignPage(QWidget):
          old_child_path = None
 
          if child_node.type == 'folder':
-               # If the child node is a directory
-               if os.path.exists(child_path):
-                  # If the directory already exists, get the old path
-                  old_child_path = child_path
-               else:
-                  # If the directory doesn't exist, create it
-                  os.makedirs(child_path, exist_ok=True)
-                  self.summary_text.append(f"Created directory: {child_path}")
+            # If the child node is a directory
+            if os.path.exists(child_path):
+               # If the directory already exists, get the old path
+               old_child_path = child_path
+            else:
+               # If the directory doesn't exist, create it
+               os.makedirs(child_path, exist_ok=True)
+               self.summary_text.append(f"Created directory: {child_path}")
 
-               # Recursively create the directory structure for the child node
-               self.create_directory_structure(child_node, child_path)
+            # Recursively create the directory structure for the child node
+            self.create_directory_structure(child_node, child_path)
 
-               if old_child_path and old_child_path != child_path:
-                  # If the directory was renamed or moved, update the summary
-                  self.summary_text.append(f"Renamed/moved directory: {old_child_path} -> {child_path}")
-                  child_node.move(child_path)
-                  child_node.rename(os.path.basename(child_path))
+            if old_child_path and old_child_path != child_path:
+               # If the directory was renamed or moved, update the summary
+               self.summary_text.append(f"Renamed/moved directory: {old_child_path} -> {child_path}")
+               child_node.move(child_path)
+               child_node.rename(os.path.basename(child_path))
          else:
-               # If the child node is a file
-               file_dir = os.path.dirname(child_path)
-               if not os.path.exists(file_dir):
-                  # If the parent directory doesn't exist, create it
-                  os.makedirs(file_dir, exist_ok=True)
-                  self.summary_text.append(f"Created directory: {file_dir}")
+            # If the child node is a file
+            file_dir = os.path.dirname(child_path)
+            if not os.path.exists(file_dir):
+               # If the parent directory doesn't exist, create it
+               os.makedirs(file_dir, exist_ok=True)
+               self.summary_text.append(f"Created directory: {file_dir}")
 
-               # If the file doesn't exist, create it
-               if not os.path.exists(child_path):
-                  with open(child_path, 'w') as f:
-                     pass
-                  self.summary_text.append(f"Created file: {child_path}")
+            # If the file doesn't exist, create it
+            if not os.path.exists(child_path):
+               with open(child_path, 'w') as f:
+                  pass
+               self.summary_text.append(f"Created file: {child_path}")
                   
    def set_unsaved_changes(self, unsaved_changes):
+      self.logger.info(f"Entering set_unsaved_changes with args: {unsaved_changes}")
       self.unsaved_changes = unsaved_changes
       if self.unsaved_changes:
          self.unsaved_changes_indicator.setText("* Unsaved Changes")
       else:
          self.unsaved_changes_indicator.setText("")
-      self.logger.info(f"Unsaved changes: {self.unsaved_changes}")
+      
+      self.logger.info(f"Exiting set_unsaved_changes with result: {self.unsaved_changes}")
       
    def update_window_title(self):
       title = "Template Structure: " + self.template.name
@@ -474,6 +487,7 @@ class TemplateDesignPage(QWidget):
 
    # Undo the action, push QUndoCommand to the undo stack
    def undo_action(self):
+      self.logger.info(f"Entering undo_action")
       if self.undo_stack.canUndo():
          self.undo_stack.undo()
          self.observer.undo()
@@ -481,6 +495,7 @@ class TemplateDesignPage(QWidget):
          self.redo_button.setEnabled(self.undo_stack.canRedo())
 
    def redo_action(self):
+      self.logger.info(f"Entering redo_action")
       if self.undo_stack.canRedo():
          self.undo_stack.redo()
          self.observer.redo()
@@ -531,13 +546,13 @@ class TreeWidgetCommand(QUndoCommand):
       # Store the old data and paths
       for row in range(top_left.row(), bottom_right.row() + 1):
          for column in range(top_left.column(), bottom_right.column() + 1):
-               index = self.tree_widget.model().index(row, column)
-               self.old_data[(row, column)] = self.tree_widget.model().data(index, self.roles[0])
-               item = self.tree_widget.itemFromIndex(index)
-               if item:
-                  parent_dir = self.tree_widget.parent().parent_dir
-                  old_path = os.path.join(parent_dir, item.text(0))
-                  self.old_paths[(row, column)] = old_path
+            index = self.tree_widget.model().index(row, column)
+            self.old_data[(row, column)] = self.tree_widget.model().data(index, self.roles[0])
+            item = self.tree_widget.itemFromIndex(index)
+            if item:
+               parent_dir = self.tree_widget.parent().parent_dir
+               old_path = os.path.join(parent_dir, item.text(0))
+               self.old_paths[(row, column)] = old_path
 
    def undo(self):
       # Restore the old data and paths
@@ -547,13 +562,13 @@ class TreeWidgetCommand(QUndoCommand):
          self.tree_widget.model().setData(index, data, self.roles[0])
          item = self.tree_widget.itemFromIndex(index)
          if item:
-               parent_dir = self.tree_widget.parent().parent_dir
-               new_path = os.path.join(parent_dir, item.text(0))
-               self.new_paths[(row, column)] = new_path
-               if (row, column) in self.old_paths:
-                  old_path = self.old_paths[(row, column)]
-                  if old_path != new_path:
-                     shutil.move(new_path, old_path)
+            parent_dir = self.tree_widget.parent().parent_dir
+            new_path = os.path.join(parent_dir, item.text(0))
+            self.new_paths[(row, column)] = new_path
+            if (row, column) in self.old_paths:
+               old_path = self.old_paths[(row, column)]
+               if old_path != new_path:
+                  shutil.move(new_path, old_path)
 
    def redo(self):
       # Restore the new data and paths
@@ -562,12 +577,12 @@ class TreeWidgetCommand(QUndoCommand):
          self.tree_widget.model().setData(index, data, self.roles[0])
          item = self.tree_widget.itemFromIndex(index)
          if item:
-               parent_dir = self.tree_widget.parent().parent_dir
-               new_path = os.path.join(parent_dir, item.text(0))
-               if (row, column) in self.old_paths:
-                  old_path = self.old_paths[(row, column)]
-                  if old_path != new_path:
-                     shutil.move(old_path, new_path)
+            parent_dir = self.tree_widget.parent().parent_dir
+            new_path = os.path.join(parent_dir, item.text(0))
+            if (row, column) in self.old_paths:
+               old_path = self.old_paths[(row, column)]
+               if old_path != new_path:
+                  shutil.move(old_path, new_path)
                      
 def topological_sort(root_node):
    """
